@@ -21,7 +21,7 @@ function FileOnWrite(options) {
   this.sync = options.sync;
   this.writable = true;
   this.context = options.context;
-  this.filter = options.filter || function() { return true; };
+  this.filter = options.filter || function(data, cb) { return cb(null,true); };
   
   if (!fs.existsSync(this.path)) fs.mkdirSync(this.path);
 }
@@ -34,17 +34,20 @@ FileOnWrite.prototype.write = function(data) {
   // Build full filepath
   var file = path.join(this.path, this.filename.call(this.context, data) + this.ext);
   // If the data doesn't pass the filter, return
-  if (!this.filter(data)) return;
-  // Transform the data before write
-  var transformedData = this.transform.call(this.context, data);
-  // Write data
-  if (this.sync) {
-    fs.writeFileSync(file, transformedData);
-  } else {
-    fs.writeFile(file, transformedData, function(err) { 
-      if (err) this.emit('error', err); 
-    }); 
-  }
+  this.filter(data, function(err, pass) {
+    if(err || !pass) 
+      return;
+    // Transform the data before write
+    var transformedData = this.transform.call(this.context, data);
+    // Write data
+    if (this.sync) {
+      fs.writeFileSync(file, transformedData);
+    } else {
+      fs.writeFile(file, transformedData, function(err) { 
+        if (err) this.emit('error', err); 
+      }); 
+    }
+  });
 };
 
 /**
