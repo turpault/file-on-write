@@ -22,6 +22,7 @@ function FileOnWrite(options) {
   this.writable = true;
   this.context = options.context;
   this.filter = options.filter || function(data, cb) { return cb(null,true); };
+  this.end = options.end || function() {};
   
   if (!fs.existsSync(this.path)) fs.mkdirSync(this.path);
 }
@@ -32,19 +33,21 @@ util.inherits(FileOnWrite, Stream);
  */
 FileOnWrite.prototype.write = function(data) {
   // Build full filepath
-  var file = path.join(this.path, this.filename.call(this.context, data) + this.ext);
   // If the data doesn't pass the filter, return
+  var that = this;
   this.filter(data, function(err, pass) {
     if(err || !pass) 
       return;
+    var file = path.join(that.path, that.filename.call(that.context, data) + that.ext);
     // Transform the data before write
-    var transformedData = this.transform.call(this.context, data);
+    var transformedData = that.transform.call(this.context, data);
     // Write data
-    if (this.sync) {
-      fs.writeFileSync(file, transformedData);
+    if (that.sync) {
+      that.end(fs.writeFileSync(file, transformedData), file);
     } else {
       fs.writeFile(file, transformedData, function(err) { 
-        if (err) this.emit('error', err); 
+        if (err) that.emit('error', err); 
+        that.end(err, file);
       }); 
     }
   });
